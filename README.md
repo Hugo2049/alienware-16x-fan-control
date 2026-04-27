@@ -3,6 +3,10 @@
 A fan speed controller for the Alienware 16X Aurora (AC16251) on Linux,
 achieved through reverse engineering of the ACPI/WMI interface.
 
+<img width="918" height="795" alt="image" src="https://github.com/user-attachments/assets/4e1d98ca-fec4-41cd-a11b-a1cf585dfed1" />
+
+
+
 ## Hardware
 - Machine: Alienware 16X Aurora AC16251
 - CPU: Intel Core Ultra 9 275HX
@@ -76,6 +80,17 @@ sudo ./fan_helper.sh profile performance
 4. Reverse engineered WMAX method and AX24/AX26 sub-functions
 5. Identified EC register writes via ECW1(0x21, speed) and ECW1(0x39, fan_id)
 6. Confirmed via acpi_call kernel module
+
+## Credits
+
+Developed by Hugo (Hugo2049) with assistance from Claude (Anthropic).
+The reverse engineering methodology, ACPI analysis, and protocol discovery
+were worked out collaboratively through an iterative process of dumping
+tables, reading ASL source, probing WMI interfaces on Windows, and
+testing on Linux via acpi_call.
+
+Claude: https://claude.ai
+Anthropic: https://anthropic.com
 
 ## License
 GPL-2.0
