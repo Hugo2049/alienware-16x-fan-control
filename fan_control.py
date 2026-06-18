@@ -95,6 +95,139 @@ class FanGauge(Gtk.DrawingArea):
         cr.show_text(pt)
 
 
+class RpmGraph(Gtk.DrawingArea):
+    HISTORY = 60
+
+    def __init__(self):
+        super().__init__()
+        self.cpu_hist = []
+        self.gpu_hist = []
+        self.set_size_request(-1, 120)
+        self.set_hexpand(True)
+        self.set_draw_func(self.draw)
+
+    def push(self, cpu_rpm, gpu_rpm):
+        self.cpu_hist.append(cpu_rpm)
+        self.gpu_hist.append(gpu_rpm)
+        if len(self.cpu_hist) > self.HISTORY:
+            self.cpu_hist.pop(0)
+            self.gpu_hist.pop(0)
+        self.queue_draw()
+
+    def draw(self, widget, cr, w, h):
+        pad_l, pad_r, pad_t, pad_b = 46, 10, 8, 6
+        gw = w - pad_l - pad_r
+        gh = h - pad_t - pad_b
+        rpm_min, rpm_max = 0, MAX_RPM
+
+        cr.set_line_width(0.5)
+        cr.set_font_size(9)
+        for rpm in (2000, 4000, 6000):
+            y = pad_t + gh - rpm / rpm_max * gh
+            cr.set_source_rgba(0.5, 0.5, 0.5, 0.15)
+            cr.move_to(pad_l, y)
+            cr.line_to(pad_l + gw, y)
+            cr.stroke()
+            cr.set_source_rgba(0.5, 0.5, 0.5, 0.55)
+            lbl = f'{rpm//1000}k'
+            e = cr.text_extents(lbl)
+            cr.move_to(pad_l - e.width - 4, y + e.height / 2)
+            cr.show_text(lbl)
+
+        def draw_line(history, color):
+            if len(history) < 2:
+                return
+            r, g, b = color
+            cr.set_source_rgba(r, g, b, 0.85)
+            cr.set_line_width(1.8)
+            for i, rpm in enumerate(history):
+                x = pad_l + i / (self.HISTORY - 1) * gw
+                y = pad_t + gh - max(0, min(rpm, rpm_max)) / rpm_max * gh
+                if i == 0:
+                    cr.move_to(x, y)
+                else:
+                    cr.line_to(x, y)
+            cr.stroke()
+
+        draw_line(self.cpu_hist, CPU_COLOR)
+        draw_line(self.gpu_hist, GPU_COLOR)
+
+        cr.set_font_size(10)
+        for i, (label, color) in enumerate([('CPU', CPU_COLOR), ('GPU', GPU_COLOR)]):
+            r, g, b = color
+            cr.set_source_rgba(r, g, b, 0.9)
+            cr.move_to(pad_l + 6 + i * 55, pad_t + 11)
+            cr.show_text(f'● {label}')
+
+
+class TempGraph(Gtk.DrawingArea):
+    HISTORY = 60
+
+    def __init__(self):
+        super().__init__()
+        self.cpu_hist = []
+        self.gpu_hist = []
+        self.set_size_request(-1, 120)
+        self.set_hexpand(True)
+        self.set_draw_func(self.draw)
+
+    def push(self, cpu_temp, gpu_temp):
+        self.cpu_hist.append(cpu_temp)
+        self.gpu_hist.append(gpu_temp)
+        if len(self.cpu_hist) > self.HISTORY:
+            self.cpu_hist.pop(0)
+            self.gpu_hist.pop(0)
+        self.queue_draw()
+
+    def draw(self, widget, cr, w, h):
+        pad_l, pad_r, pad_t, pad_b = 34, 10, 8, 6
+        gw = w - pad_l - pad_r
+        gh = h - pad_t - pad_b
+        temp_min, temp_max = 20, 110
+
+        # grid lines + y-axis labels
+        cr.set_line_width(0.5)
+        cr.set_font_size(9)
+        for temp in (40, 60, 80, 100):
+            y = pad_t + gh - (temp - temp_min) / (temp_max - temp_min) * gh
+            cr.set_source_rgba(0.5, 0.5, 0.5, 0.15)
+            cr.move_to(pad_l, y)
+            cr.line_to(pad_l + gw, y)
+            cr.stroke()
+            cr.set_source_rgba(0.5, 0.5, 0.5, 0.55)
+            lbl = f'{temp}°'
+            e = cr.text_extents(lbl)
+            cr.move_to(pad_l - e.width - 4, y + e.height / 2)
+            cr.show_text(lbl)
+
+        def draw_line(history, color):
+            if len(history) < 2:
+                return
+            r, g, b = color
+            cr.set_source_rgba(r, g, b, 0.85)
+            cr.set_line_width(1.8)
+            for i, temp in enumerate(history):
+                x = pad_l + i / (self.HISTORY - 1) * gw
+                y = pad_t + gh - (temp - temp_min) / (temp_max - temp_min) * gh
+                y = max(pad_t, min(pad_t + gh, y))
+                if i == 0:
+                    cr.move_to(x, y)
+                else:
+                    cr.line_to(x, y)
+            cr.stroke()
+
+        draw_line(self.cpu_hist, CPU_COLOR)
+        draw_line(self.gpu_hist, GPU_COLOR)
+
+        # legend
+        cr.set_font_size(10)
+        for i, (label, color) in enumerate([('CPU', CPU_COLOR), ('GPU', GPU_COLOR)]):
+            r, g, b = color
+            cr.set_source_rgba(r, g, b, 0.9)
+            cr.move_to(pad_l + 6 + i * 55, pad_t + 11)
+            cr.show_text(f'● {label}')
+
+
 class FanApp(Adw.Application):
     def __init__(self):
         super().__init__(application_id='com.hbwal.fancontrol')
@@ -104,7 +237,7 @@ class FanApp(Adw.Application):
     def on_activate(self, app):
         self.win = Adw.ApplicationWindow(application=app)
         self.win.set_title('Fan Control')
-        self.win.set_default_size(500, 620)
+        self.win.set_default_size(500, 960)
         self.win.set_resizable(False)
 
         tb = Adw.ToolbarView()
@@ -243,6 +376,42 @@ class FanApp(Adw.Application):
             self.stat_labels[key] = v
         root.append(scard)
 
+        # Temperature graph
+        gcard = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        gcard.add_css_class('card')
+        gl = Gtk.Label(label='Temperature history  (2 min)')
+        gl.set_halign(Gtk.Align.START)
+        gl.add_css_class('caption')
+        gl.add_css_class('dim-label')
+        gl.set_margin_start(12)
+        gl.set_margin_top(12)
+        gcard.append(gl)
+        self.temp_graph = TempGraph()
+        self.temp_graph.set_margin_start(8)
+        self.temp_graph.set_margin_end(8)
+        self.temp_graph.set_margin_top(4)
+        self.temp_graph.set_margin_bottom(10)
+        gcard.append(self.temp_graph)
+        root.append(gcard)
+
+        # RPM graph
+        rcard = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        rcard.add_css_class('card')
+        rl = Gtk.Label(label='Fan RPM history  (2 min)')
+        rl.set_halign(Gtk.Align.START)
+        rl.add_css_class('caption')
+        rl.add_css_class('dim-label')
+        rl.set_margin_start(12)
+        rl.set_margin_top(12)
+        rcard.append(rl)
+        self.rpm_graph = RpmGraph()
+        self.rpm_graph.set_margin_start(8)
+        self.rpm_graph.set_margin_end(8)
+        self.rpm_graph.set_margin_top(4)
+        self.rpm_graph.set_margin_bottom(10)
+        rcard.append(self.rpm_graph)
+        root.append(rcard)
+
         tb.set_content(root)
         self.win.set_content(tb)
         self.win.present()
@@ -320,6 +489,8 @@ class FanApp(Adw.Application):
         self.stat_labels['gpu_rpm'].set_label(f'{gpu_rpm:,}')
         self.stat_labels['cpu_temp'].set_label(f'{cpu_temp}°C')
         self.stat_labels['gpu_temp'].set_label(f'{gpu_temp}°C')
+        self.temp_graph.push(cpu_temp, gpu_temp)
+        self.rpm_graph.push(cpu_rpm, gpu_rpm)
         return True
 
 FanApp().run()
